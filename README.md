@@ -19,14 +19,6 @@ This repository contains:
 
 ---
 
-## 🪪 Wallet Details
-
-**Contract Address:**
-
-```
-CA5TD6RXA5ETYQ6UM46XMBAGFMIFGTUFKY6DIQQLOZ56EESSGJM5HQLU
-```
-
 ---
 
 ## 📜 Smart Contract
@@ -36,6 +28,16 @@ Below is the deployed contract preview:
 ![Smart Contract](https://github.com/user-attachments/assets/9f15d3b3-3f06-4ef5-88f7-a812cd7f5043)
 
 ---
+
+## 🪪 Wallet Details
+
+**Contract Address:**
+
+```
+CA5TD6RXA5ETYQ6UM46XMBAGFMIFGTUFKY6DIQQLOZ56EESSGJM5HQLU
+```
+
+
 
 ## 💻 Frontend Preview
 
