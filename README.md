@@ -19,7 +19,6 @@ This repository contains:
 
 ---
 
----
 
 ## 📜 Smart Contract
 
@@ -37,8 +36,7 @@ Below is the deployed contract preview:
 CA5TD6RXA5ETYQ6UM46XMBAGFMIFGTUFKY6DIQQLOZ56EESSGJM5HQLU
 ```
 
-
-
+---
 ## 💻 Frontend Preview
 
 User interface for interacting with the staking contract:
