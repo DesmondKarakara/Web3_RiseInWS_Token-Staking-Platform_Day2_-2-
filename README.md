@@ -166,8 +166,6 @@ User interface for interacting with the staking contract:
 
 ---
 
----
-
 ## ✨ Author
 
 Developed by **RiseIn** **GDG Nit** & **Devdipro Bhaduri**
