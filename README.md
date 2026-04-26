@@ -41,8 +41,7 @@ CA5TD6RXA5ETYQ6UM46XMBAGFMIFGTUFKY6DIQQLOZ56EESSGJM5HQLU
 
 User interface for interacting with the staking contract:
 
-![Frontend UI](<img width="1890" height="905" alt="image" src="https://github.com/user-attachments/assets/b0ed6805-25f8-4a42-adc0-db9f8dc57f58" />
-)
+![Frontend UI](https://github.com/user-attachments/assets/d5e53d5c-f62e-4a3e-89dd-6f141375efd2)
 
 ---
 
