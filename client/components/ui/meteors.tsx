@@ -1,24 +1,37 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 
 interface MeteorsProps {
   number?: number;
   className?: string;
 }
 
+interface Meteor {
+  id: number;
+  left: string;
+  delay: string;
+  duration: string;
+}
+
 export function Meteors({ number = 15, className }: MeteorsProps) {
-  const meteors = useMemo(
-    () =>
-      Array.from({ length: number }, (_, i) => ({
+  const [meteors, setMeteors] = useState<Meteor[]>([]);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    // Only generate meteors once on client side to avoid hydration mismatch
+    if (!initialized.current) {
+      initialized.current = true;
+      const generatedMeteors = Array.from({ length: number }, (_, i) => ({
         id: i,
         left: `${Math.floor(Math.random() * 100)}%`,
         delay: `${(Math.random() * 5).toFixed(1)}s`,
         duration: `${(Math.random() * 3 + 2).toFixed(1)}s`,
-      })),
-    [number]
-  );
+      }));
+      setMeteors(generatedMeteors);
+    }
+  }, [number]);
 
   return (
     <>

@@ -26,7 +26,7 @@ import {
 
 /** Your deployed Soroban contract ID */
 export const CONTRACT_ADDRESS =
-  "CCZ3M3WXVN4U3V23BXPU7HBQLV3BERLRIS2HHZJ433PUOAMAIQ3S3FX6";
+  "CA5TD6RXA5ETYQ6UM46XMBAGFMIFGTUFKY6DIQQLOZ56EESSGJM5HQLU";
 
 /** Network passphrase (testnet by default) */
 export const NETWORK_PASSPHRASE = Networks.TESTNET;
@@ -173,9 +173,22 @@ export async function readContract(
   params: xdr.ScVal[] = [],
   caller?: string
 ) {
-  const account =
-    caller || Keypair.random().publicKey(); // Use a random keypair for read-only
-  const sim = await callContract(method, params, account, false);
+  const contract = new Contract(CONTRACT_ADDRESS);
+
+  // For read-only calls, we need a valid account for simulation
+  // Use a well-known testnet account that exists
+  const accountId = caller || "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7"; // A known testnet account
+  const account = await server.getAccount(accountId);
+
+  const tx = new TransactionBuilder(account, {
+    fee: "100",
+    networkPassphrase: NETWORK_PASSPHRASE,
+  })
+    .addOperation(contract.call(method, ...params))
+    .setTimeout(30)
+    .build();
+
+  const sim = await server.simulateTransaction(tx);
   if (
     rpc.Api.isSimulationSuccess(sim as rpc.Api.SimulateTransactionResponse) &&
     (sim as rpc.Api.SimulateTransactionSuccessResponse).result

@@ -4,15 +4,21 @@ import { useState, useEffect, useCallback } from "react";
 import { Meteors } from "@/components/ui/meteors";
 import Navbar from "@/components/Navbar";
 import ContractUI from "@/components/Contract";
+import { Dashboard } from "@/components/Dashboard";
+import { TransactionHistory } from "@/components/TransactionHistory";
+import { Analytics } from "@/components/Analytics";
 import {
   connectWallet,
   getWalletAddress,
   checkConnection,
 } from "@/hooks/contract";
 
+type TabType = "stake" | "dashboard" | "history" | "analytics";
+
 export default function Home() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("stake");
 
   useEffect(() => {
     (async () => {
@@ -42,6 +48,13 @@ export default function Home() {
     setWalletAddress(null);
   }, []);
 
+  const tabs = [
+    { id: "stake" as TabType, label: "Staking", icon: "💰" },
+    { id: "dashboard" as TabType, label: "Dashboard", icon: "📊" },
+    { id: "history" as TabType, label: "History", icon: "📋" },
+    { id: "analytics" as TabType, label: "Analytics", icon: "📈" },
+  ];
+
   return (
     <div className="relative flex flex-col min-h-screen bg-[#050510] overflow-hidden">
       {/* Meteors */}
@@ -64,7 +77,7 @@ export default function Home() {
       />
 
       {/* Hero + Content */}
-      <main className="relative z-10 flex flex-1 w-full max-w-5xl mx-auto flex-col items-center px-6 pt-10 pb-16">
+      <main className="relative z-10 flex flex-1 w-full max-w-6xl mx-auto flex-col items-center px-6 pt-10 pb-16">
         {/* Hero — compact */}
         <div className="mb-10 text-center animate-fade-in-up">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-1.5 text-sm text-white/50 backdrop-blur-sm">
@@ -85,7 +98,7 @@ export default function Home() {
           </h1>
 
           <p className="mx-auto max-w-lg text-sm sm:text-base leading-relaxed text-white/40">
-            Register products, track shipments, and verify authenticity — immutably on Stellar.
+            Stake tokens, earn rewards, and track your position on Stellar blockchain.
           </p>
 
           {/* Inline stats */}
@@ -103,12 +116,65 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Contract UI */}
-        <ContractUI
-          walletAddress={walletAddress}
-          onConnect={handleConnect}
-          isConnecting={isConnecting}
-        />
+        {/* Tab Navigation */}
+        <div className="w-full mb-8">
+          <div className="flex justify-center">
+            <div className="flex bg-gray-900/50 rounded-lg p-1 border border-gray-700/50 backdrop-blur-sm">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    activeTab === tab.id
+                      ? "bg-[#7c6cf0] text-white shadow-lg"
+                      : "text-gray-400 hover:text-white hover:bg-gray-800/50"
+                  }`}
+                >
+                  <span>{tab.icon}</span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="w-full max-w-4xl">
+          {activeTab === "stake" && (
+            <ContractUI
+              walletAddress={walletAddress}
+              onConnect={handleConnect}
+              isConnecting={isConnecting}
+            />
+          )}
+
+          {activeTab === "dashboard" && walletAddress && (
+            <Dashboard walletAddress={walletAddress} />
+          )}
+
+          {activeTab === "history" && walletAddress && (
+            <TransactionHistory walletAddress={walletAddress} />
+          )}
+
+          {activeTab === "analytics" && (
+            <Analytics />
+          )}
+
+          {!walletAddress && activeTab !== "analytics" && (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                Connect your wallet to access this feature
+              </div>
+              <button
+                onClick={handleConnect}
+                disabled={isConnecting}
+                className="px-6 py-3 bg-[#7c6cf0] hover:bg-[#6b5ce7] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
+              >
+                {isConnecting ? "Connecting..." : "Connect Wallet"}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Footer */}
         <div className="mt-10 flex flex-col items-center gap-4 animate-fade-in">

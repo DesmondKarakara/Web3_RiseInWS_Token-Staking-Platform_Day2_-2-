@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: "Stellar Dapp",
   description:
     "Fullstack Dapp built on Stellar",
+  icons: {
+    icon: "/globe.svg",
+  },
 };
 
 export default function RootLayout({
@@ -28,7 +31,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-[#050510]">
+      <body className="min-h-full flex flex-col bg-[#050510]" suppressHydrationWarning>
         {children}
       </body>
     </html>

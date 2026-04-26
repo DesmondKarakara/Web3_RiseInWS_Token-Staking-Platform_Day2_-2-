@@ -15,6 +15,14 @@ import { Spotlight } from "@/components/ui/spotlight";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  validateStakeAmount,
+  sanitizeError,
+  stakeRateLimiter,
+  unstakeRateLimiter,
+  claimRateLimiter,
+  validateTransactionAmount
+} from "@/lib/security";
 
 // ── Icons ────────────────────────────────────────────────────
 
@@ -204,62 +212,132 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
   useEffect(() => {
     if (walletAddress) refreshData();
-  }, [walletAddress, refreshData]);
+  }, [walletAddress]); // Remove refreshData from deps to avoid cascading renders
 
   const handleStake = useCallback(async () => {
     if (!walletAddress) return setError("Connect wallet first");
-    if (!stakeAmount || Number(stakeAmount) <= 0) return setError("Enter a valid amount");
+
+    // Validate input
+    const validation = validateStakeAmount(stakeAmount);
+    if (!validation.valid) {
+      return setError(validation.error || "Invalid input");
+    }
+
+    // Check rate limiting
+    if (!stakeRateLimiter.canExecute(walletAddress)) {
+      const remainingTime = stakeRateLimiter.getRemainingTime(walletAddress);
+      return setError(`Please wait ${Math.ceil(remainingTime / 1000)} seconds before staking again`);
+    }
+
+    // Check transaction amount against user balance (simplified check)
+    if (stakerInfo) {
+      const amount = BigInt(Math.floor(Number(stakeAmount) * 10000000));
+      const userStaked = BigInt(stakerInfo.staked);
+      // For simplicity, assume user has enough balance - in real app check wallet balance
+      const validation2 = validateTransactionAmount(amount, BigInt("1000000000000")); // Mock large balance
+      if (!validation2.valid) {
+        return setError(validation2.error || "Invalid transaction amount");
+      }
+    }
+
     setError(null);
     setIsStaking(true);
-    setTxStatus("Awaiting signature...");
+    setTxStatus("Validating transaction...");
+
     try {
+      stakeRateLimiter.recordAction(walletAddress);
+
       const amount = BigInt(Math.floor(Number(stakeAmount) * 10000000));
+      setTxStatus("Awaiting signature...");
       await stake(walletAddress, amount);
+
       setTxStatus("Tokens staked successfully!");
       setStakeAmount("");
       await refreshData();
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      const sanitizedError = sanitizeError(err instanceof Error ? err : new Error(String(err)));
+      setError(sanitizedError);
       setTxStatus(null);
     } finally {
       setIsStaking(false);
     }
-  }, [walletAddress, stakeAmount, refreshData]);
+  }, [walletAddress, stakeAmount, stakerInfo, refreshData]);
 
   const handleUnstake = useCallback(async () => {
     if (!walletAddress) return setError("Connect wallet first");
-    if (!unstakeAmount || Number(unstakeAmount) <= 0) return setError("Enter a valid amount");
+
+    // Validate input
+    const validation = validateStakeAmount(unstakeAmount);
+    if (!validation.valid) {
+      return setError(validation.error || "Invalid input");
+    }
+
+    // Check rate limiting
+    if (!unstakeRateLimiter.canExecute(walletAddress)) {
+      const remainingTime = unstakeRateLimiter.getRemainingTime(walletAddress);
+      return setError(`Please wait ${Math.ceil(remainingTime / 1000)} seconds before unstaking again`);
+    }
+
+    // Check if user has enough staked tokens
+    if (stakerInfo) {
+      const amount = BigInt(Math.floor(Number(unstakeAmount) * 10000000));
+      const userStaked = BigInt(stakerInfo.staked);
+      const validation2 = validateTransactionAmount(amount, userStaked);
+      if (!validation2.valid) {
+        return setError(validation2.error || "Invalid transaction amount");
+      }
+    }
+
     setError(null);
     setIsUnstaking(true);
-    setTxStatus("Awaiting signature...");
+    setTxStatus("Validating transaction...");
+
     try {
+      unstakeRateLimiter.recordAction(walletAddress);
+
       const amount = BigInt(Math.floor(Number(unstakeAmount) * 10000000));
+      setTxStatus("Awaiting signature...");
       await unstake(walletAddress, amount);
+
       setTxStatus("Tokens unstaked successfully!");
       setUnstakeAmount("");
       await refreshData();
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      const sanitizedError = sanitizeError(err instanceof Error ? err : new Error(String(err)));
+      setError(sanitizedError);
       setTxStatus(null);
     } finally {
       setIsUnstaking(false);
     }
-  }, [walletAddress, unstakeAmount, refreshData]);
+  }, [walletAddress, unstakeAmount, stakerInfo, refreshData]);
 
   const handleClaim = useCallback(async () => {
     if (!walletAddress) return setError("Connect wallet first");
+
+    // Check rate limiting
+    if (!claimRateLimiter.canExecute(walletAddress)) {
+      const remainingTime = claimRateLimiter.getRemainingTime(walletAddress);
+      return setError(`Please wait ${Math.ceil(remainingTime / 1000)} seconds before claiming again`);
+    }
+
     setError(null);
     setIsClaiming(true);
-    setTxStatus("Awaiting signature...");
+    setTxStatus("Validating transaction...");
+
     try {
+      claimRateLimiter.recordAction(walletAddress);
+
+      setTxStatus("Awaiting signature...");
       await claimRewards(walletAddress);
-      setTxStatus("Rewards claimed!");
+
+      setTxStatus("Rewards claimed successfully!");
       await refreshData();
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      const sanitizedError = sanitizeError(err instanceof Error ? err : new Error(String(err)));
+      setError(sanitizedError);
       setTxStatus(null);
     } finally {
       setIsClaiming(false);
@@ -268,18 +346,42 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
   const handleCompound = useCallback(async () => {
     if (!walletAddress) return setError("Connect wallet first");
+
+    // Validate compound amount if provided
+    if (compoundAmount) {
+      const validation = validateStakeAmount(compoundAmount);
+      if (!validation.valid) {
+        return setError(validation.error || "Invalid input");
+      }
+    }
+
+    // Check rate limiting
+    if (!claimRateLimiter.canExecute(walletAddress)) {
+      const remainingTime = claimRateLimiter.getRemainingTime(walletAddress);
+      return setError(`Please wait ${Math.ceil(remainingTime / 1000)} seconds before compounding again`);
+    }
+
     setError(null);
     setIsCompounding(true);
-    setTxStatus("Awaiting signature...");
+    setTxStatus("Validating transaction...");
+
     try {
-      const amount = BigInt(Math.floor(Number(compoundAmount || "0") * 10000000));
+      claimRateLimiter.recordAction(walletAddress);
+
+      const amount = compoundAmount
+        ? BigInt(Math.floor(Number(compoundAmount) * 10000000))
+        : BigInt(0);
+
+      setTxStatus("Awaiting signature...");
       await compoundStake(walletAddress, amount);
+
       setTxStatus("Compounded successfully!");
       setCompoundAmount("");
       await refreshData();
       setTimeout(() => setTxStatus(null), 5000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Transaction failed");
+      const sanitizedError = sanitizeError(err instanceof Error ? err : new Error(String(err)));
+      setError(sanitizedError);
       setTxStatus(null);
     } finally {
       setIsCompounding(false);
