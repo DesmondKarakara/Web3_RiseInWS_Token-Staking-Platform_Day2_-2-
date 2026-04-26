@@ -24,8 +24,7 @@ This repository contains:
 
 Below is the deployed contract preview:
 
-![Smart Contract](https://github.com/user-attachments/assets/0e4000df-1b47-461a-b665-b1888fb12313>
-)
+![Smart Contract](https://github.com/user-attachments/assets/0e4000df-1b47-461a-b665-b1888fb12313)
 
 ---
 
