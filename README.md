@@ -119,7 +119,7 @@ CA5TD6RXA5ETYQ6UM46XMBAGFMIFGTUFKY6DIQQLOZ56EESSGJM5HQLU
 
 User interface for interacting with the staking contract:
 
-![Frontend UI](https://github.com/user-attachments/assets/d5e53d5c-f62e-4a3e-89dd-6f141375efd2)
+![Frontend UI](https://github.com/user-attachments/assets/0de469c2-afdf-4b27-a4bb-9802641d8fb5)
 
 ---
 
@@ -128,6 +128,13 @@ User interface for interacting with the staking contract:
 👉 [View Full Project on GitHub](https://github.com/DesmondKarakara/Web3_RiseInWS_Token-Staking-Platform_Day2_-2-)
 
 ---
+
+
+## 🚀 Stellar Token Staking dApp 
+```bash
+|👉 [Live](https://web3-riseinws-token-staking-platform.onrender.com/)
+ ```
+
 
 ## ⚙️ Features
 
