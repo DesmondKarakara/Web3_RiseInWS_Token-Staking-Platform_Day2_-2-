@@ -210,7 +210,6 @@ cargo test
 - ✅ State management
 - ✅ Balance calculations
 
-For detailed testing information, see [TESTING_GUIDE.md](./TESTING_GUIDE.md)
 
 ---
 
@@ -257,8 +256,7 @@ Built with Tailwind CSS for optimal responsiveness.
 
 Below is the deployed contract preview:
 
-![Smart Contract](https://github.com/user-attachments/assets/ff979b22-2b1f-41ea-9c39-58be1e0f489e>
-)
+![Smart Contract](https://github.com/user-attachments/assets/ff979b22-2b1f-41ea-9c39-58be1e0f489e)
 
 ---
 
