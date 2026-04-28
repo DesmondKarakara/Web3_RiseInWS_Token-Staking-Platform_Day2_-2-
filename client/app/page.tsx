@@ -139,14 +139,14 @@ export default function Home() {
         </div>
 
         {/* Tab Content */}
-        <div className="w-full max-w-4xl">
-          {activeTab === "stake" && (
-            <ContractUI
-              walletAddress={walletAddress}
-              onConnect={handleConnect}
-              isConnecting={isConnecting}
-            />
-          )}
+        <div className="w-full max-w-4xl mx-auto">
+            {activeTab === "stake" && (
+              <ContractUI
+                walletAddress={walletAddress}
+                onConnect={handleConnect}
+                isConnecting={isConnecting}
+              />
+            )}
 
           {activeTab === "dashboard" && walletAddress && (
             <Dashboard walletAddress={walletAddress} />

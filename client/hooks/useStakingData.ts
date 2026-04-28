@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   getStakerInfo,
   getGlobalStats,
@@ -16,21 +16,74 @@ export interface GlobalStats {
   reward_rate: string;
 }
 
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number;
+}
+
 interface AutoRefreshConfig {
   interval?: number;
+  cacheTtl?: number;
+  backgroundRefresh?: boolean;
   onError?: (error: Error) => void;
   onSuccess?: (data: { staker: StakerInfo | null; global: GlobalStats | null }) => void;
 }
 
 /**
- * Custom hook for auto-refreshing staking data
- * Handles polling, error recovery, and state management
+ * Enhanced caching system with TTL and background refresh
+ */
+class DataCache<T> {
+  private cache = new Map<string, CacheEntry<T>>();
+
+  set(key: string, data: T, ttl: number = 30000): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl,
+    });
+  }
+
+  get(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.data;
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  size(): number {
+    return this.cache.size;
+  }
+}
+
+// Global cache instances
+const stakerCache = new DataCache<StakerInfo>();
+const globalStatsCache = new DataCache<GlobalStats>();
+
+/**
+ * Enhanced custom hook for auto-refreshing staking data with caching
+ * Handles polling, error recovery, state management, and intelligent caching
  */
 export function useStakingData(
   walletAddress: string | null,
   config: AutoRefreshConfig = {}
 ) {
-  const { interval = 10000, onError, onSuccess } = config;
+  const {
+    interval = 10000,
+    cacheTtl = 30000,
+    backgroundRefresh = true,
+    onError,
+    onSuccess
+  } = config;
 
   const [stakerInfo, setStakerInfo] = useState<StakerInfo | null>(null);
   const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
@@ -38,59 +91,149 @@ export function useStakingData(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [cacheHits, setCacheHits] = useState(0);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
 
-  const fetchData = useCallback(async () => {
-    if (!walletAddress || !autoRefreshEnabled) return;
+  // Cache keys
+  const stakerCacheKey = useMemo(() =>
+    walletAddress ? `staker_${walletAddress}` : null,
+    [walletAddress]
+  );
+  const globalCacheKey = 'global_stats';
+
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    if (!walletAddress && !forceRefresh) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const [staker, global] = await Promise.all([
-        getStakerInfo(walletAddress),
-        getGlobalStats(),
-      ]);
+      let stakerData = null;
+      let globalData = null;
+      let cacheUsed = false;
 
-      setStakerInfo(staker || null);
-      setGlobalStats(global || null);
+      // Try to get data from cache first (unless force refresh)
+      if (!forceRefresh) {
+        if (stakerCacheKey) {
+          stakerData = stakerCache.get(stakerCacheKey);
+        }
+        globalData = globalStatsCache.get(globalCacheKey);
+
+        if (stakerData || globalData) {
+          cacheUsed = true;
+          setCacheHits(prev => prev + 1);
+        }
+      }
+
+      // Fetch fresh data if not in cache or force refresh
+      if (!stakerData && walletAddress) {
+        stakerData = await getStakerInfo(walletAddress);
+        if (stakerData && stakerCacheKey) {
+          stakerCache.set(stakerCacheKey, stakerData, cacheTtl);
+        }
+      }
+
+      if (!globalData) {
+        globalData = await getGlobalStats();
+        if (globalData) {
+          globalStatsCache.set(globalCacheKey, globalData, cacheTtl);
+        }
+      }
+
+      // Update state
+      setStakerInfo(stakerData);
+      setGlobalStats(globalData);
       setLastUpdated(new Date());
-      onSuccess?.({ staker: staker || null, global: global || null });
+
+      // Call success callback
+      if (onSuccess) {
+        onSuccess({ staker: stakerData, global: globalData });
+      }
+
+      // Background refresh for cached data
+      if (cacheUsed && backgroundRefresh && !forceRefresh) {
+        setTimeout(async () => {
+          try {
+            const [freshStaker, freshGlobal] = await Promise.all([
+              walletAddress ? getStakerInfo(walletAddress) : Promise.resolve(null),
+              getGlobalStats(),
+            ]);
+
+            if (freshStaker && stakerCacheKey) {
+              stakerCache.set(stakerCacheKey, freshStaker, cacheTtl);
+            }
+            if (freshGlobal) {
+              globalStatsCache.set(globalCacheKey, freshGlobal, cacheTtl);
+            }
+
+            // Update state if component still mounted
+            setStakerInfo(freshStaker);
+            setGlobalStats(freshGlobal);
+            setLastUpdated(new Date());
+          } catch {
+            // Silent background refresh failure
+          }
+        }, 1000);
+      }
+
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Unknown error";
-      setError(errorMsg);
-      onError?.(err instanceof Error ? err : new Error(errorMsg));
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
+      setError(errorMessage);
+
+      if (onError) {
+        onError(err instanceof Error ? err : new Error(errorMessage));
+      }
     } finally {
       setIsLoading(false);
+      isInitialLoadRef.current = false;
     }
-  }, [walletAddress, autoRefreshEnabled, onError, onSuccess]);
+  }, [walletAddress, stakerCacheKey, cacheTtl, backgroundRefresh, onError, onSuccess]);
 
-  // Initial fetch
+  // Auto-refresh setup
   useEffect(() => {
-    if (walletAddress) {
+    if (!autoRefreshEnabled) return;
+
+    const startAutoRefresh = () => {
+      intervalRef.current = setInterval(() => {
+        fetchData();
+      }, interval);
+    };
+
+    // Initial load
+    if (isInitialLoadRef.current) {
       fetchData();
+    } else {
+      startAutoRefresh();
     }
-  }, [walletAddress]); // Only depend on walletAddress to avoid cascading renders
-
-  // Auto-refresh
-  useEffect(() => {
-    if (!walletAddress || !autoRefreshEnabled) return;
-
-    intervalRef.current = setInterval(() => {
-      fetchData();
-    }, interval);
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [walletAddress, interval, autoRefreshEnabled, fetchData]);
+  }, [fetchData, interval, autoRefreshEnabled]);
 
-  const manualRefresh = useCallback(async () => {
-    await fetchData();
-  }, [fetchData]);
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
+  // Computed values
+  const isStale = useMemo(() => {
+    if (!lastUpdated) return false;
+    return Date.now() - lastUpdated.getTime() > cacheTtl;
+  }, [lastUpdated, cacheTtl]);
+
+  const timeSinceUpdate = useMemo(() => {
+    if (!lastUpdated) return null;
+    return Math.floor((Date.now() - lastUpdated.getTime()) / 1000);
+  }, [lastUpdated]);
 
   const toggleAutoRefresh = useCallback(() => {
     setAutoRefreshEnabled((prev) => !prev);
@@ -102,9 +245,17 @@ export function useStakingData(
     isLoading,
     error,
     lastUpdated,
+    isStale,
+    timeSinceUpdate,
+    cacheHits,
     autoRefreshEnabled,
-    refresh: manualRefresh,
-    toggleAutoRefresh,
+    setAutoRefreshEnabled,
+    refresh: () => fetchData(true),
+    clearCache: () => {
+      stakerCache.clear();
+      globalStatsCache.clear();
+      setCacheHits(0);
+    },
   };
 }
 
@@ -112,16 +263,16 @@ export function useStakingData(
  * Hook for calculating APY and reward metrics
  */
 export function useRewardMetrics(globalStats: GlobalStats | null) {
-  const [metrics, setMetrics] = useState({
-    apy: "0.00",
-    rewardRate: "0",
-    secondlyReward: "0",
-    dailyReward: "0",
-    monthlyReward: "0",
-  });
-
-  useEffect(() => {
-    if (!globalStats) return;
+  const metrics = useMemo(() => {
+    if (!globalStats) {
+      return {
+        apy: "0.00",
+        rewardRate: "0.00000000",
+        secondlyReward: "0",
+        dailyReward: "0",
+        monthlyReward: "0",
+      };
+    }
 
     const SECONDS_PER_YEAR = 365.25 * 24 * 60 * 60; // 31,536,000
     const rewardRate = BigInt(globalStats.reward_rate);
@@ -129,14 +280,13 @@ export function useRewardMetrics(globalStats: GlobalStats | null) {
 
     // Avoid division by zero
     if (totalStaked === BigInt(0)) {
-      setMetrics({ // eslint-disable-line react-hooks/exhaustive-deps
+      return {
         apy: "0.00",
         rewardRate: (Number(rewardRate) / 1000000000).toFixed(8),
         secondlyReward: "0",
         dailyReward: "0",
         monthlyReward: "0",
-      });
-      return;
+      };
     }
 
     // Calculate APY
@@ -148,16 +298,14 @@ export function useRewardMetrics(globalStats: GlobalStats | null) {
     const dailyReward = secondlyReward * 86400;
     const monthlyReward = dailyReward * 30;
 
-    setMetrics({
+    return {
       apy: apy.toFixed(2),
       rewardRate: (Number(rewardRate) / 1000000000).toFixed(8),
       secondlyReward: secondlyReward.toFixed(8),
       dailyReward: dailyReward.toFixed(8),
       monthlyReward: monthlyReward.toFixed(6),
-    });
+    };
   }, [globalStats]);
-
-  return metrics;
 }
 
 /**

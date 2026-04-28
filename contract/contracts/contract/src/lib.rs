@@ -47,6 +47,10 @@ pub struct Contract;
 
 #[contractimpl]
 impl Contract {
+    pub fn __constructor(env: Env, token: Address, reward_rate: i128) {
+        Self::init(env, token, reward_rate);
+    }
+
     pub fn init(env: Env, token: Address, reward_rate: i128) {
         env.storage().instance().set(&DataKey::Token, &token);
         env.storage()
@@ -59,7 +63,7 @@ impl Contract {
             .instance()
             .set(&DataKey::RewardPerTokenStored, &0_i128);
         env.storage().instance().set(&DataKey::TotalStaked, &0_i128);
-        env.storage().instance().set(&DataKey::StakerCount, &0_u32);
+        env.storage().persistent().set(&DataKey::StakerCount, &0_u32);
     }
 
     fn get_token(env: &Env) -> Address {
@@ -82,7 +86,7 @@ impl Contract {
 
     fn get_staker_count(env: &Env) -> u32 {
         env.storage()
-            .instance()
+            .persistent()
             .get(&DataKey::StakerCount)
             .unwrap_or(0)
     }
@@ -155,24 +159,32 @@ impl Contract {
         }
 
         Self::update_global(&env);
+        let is_new_staker = env
+            .storage()
+            .persistent()
+            .get::<DataKey, StakerInfo>(&DataKey::StakerInfo(staker.clone()))
+            .is_none();
         Self::update_staker_rewards(&env, &staker);
         token_client.transfer(&staker, &env.current_contract_address(), &amount);
 
-        let mut info: StakerInfo = env
-            .storage()
-            .persistent()
-            .get(&DataKey::StakerInfo(staker.clone()))
-            .unwrap_or_else(|| {
-                let c = Self::get_staker_count(&env);
-                env.storage()
-                    .instance()
-                    .set(&DataKey::StakerCount, &(c + 1));
-                StakerInfo {
-                    staked: 0,
-                    pending_rewards: 0,
-                    last_reward_per_token: Self::get_reward_per_token(&env),
-                }
-            });
+        let mut info: StakerInfo;
+        if is_new_staker {
+            let c = Self::get_staker_count(&env);
+            env.storage()
+                .persistent()
+                .set(&DataKey::StakerCount, &(c + 1));
+            info = StakerInfo {
+                staked: 0,
+                pending_rewards: 0,
+                last_reward_per_token: Self::get_reward_per_token(&env),
+            };
+        } else {
+            info = env
+                .storage()
+                .persistent()
+                .get(&DataKey::StakerInfo(staker.clone()))
+                .unwrap();
+        }
 
         info.staked += amount;
         env.storage()
@@ -216,7 +228,7 @@ impl Contract {
         if info.staked == 0 {
             let c = Self::get_staker_count(&env);
             env.storage()
-                .instance()
+                .persistent()
                 .set(&DataKey::StakerCount, &(c.saturating_sub(1)));
             env.storage()
                 .persistent()

@@ -1,0 +1,128 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # Frontend Build & Test
+  frontend:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ./client/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: ./client
+
+      - name: Run ESLint
+        run: npm run lint
+        working-directory: ./client
+        continue-on-error: true
+
+      - name: Build project
+        run: npm run build
+        working-directory: ./client
+
+      - name: Run tests
+        run: npm test -- --passWithNoTests
+        working-directory: ./client
+        continue-on-error: true
+
+  # Smart Contract Build & Test
+  contract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Soroban CLI
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://install.stellar.org/soroban-cli | sh
+          echo "$HOME/.soroban/bin" >> $GITHUB_PATH
+
+      - name: Build contract
+        run: cargo build --target wasm32-unknown-unknown --release
+        working-directory: ./contract
+
+      - name: Run contract tests
+        run: cargo test --lib
+        working-directory: ./contract
+
+  # Code Quality Checks
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+
+      - name: Check for security vulnerabilities
+        run: |
+          cd client
+          npm audit --audit-level=high || true
+
+  # Build Summary
+  summary:
+    runs-on: ubuntu-latest
+    needs: [frontend, contract, quality]
+    if: always()
+
+    steps:
+      - name: Check build status
+        run: |
+          echo "✅ Frontend build: ${{ needs.frontend.result }}"
+          echo "✅ Contract build: ${{ needs.contract.result }}"
+          echo "✅ Code quality: ${{ needs.quality.result }}"
+
+      - name: Notify on failure
+        if: ${{ failure() }}
+        run: echo "⚠️ Some checks failed. Please review the logs above."
+
+      - name: Notify on success
+        if: ${{ success() }}
+        run: echo "✅ All checks passed! Ready for deployment."

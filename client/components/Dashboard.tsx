@@ -39,7 +39,7 @@ export function Dashboard({ walletAddress }: DashboardProps) {
         const dailyAPY = totalStaked > 0 ? (dailyRewards / totalStaked) * 365 * 100 : 0;
 
         // Calculate earnings projections
-        const userStaked = Number(stakerInfo.staked) / 10000000;
+        const userStaked = stakerInfo ? Number(stakerInfo.staked) / 10000000 : 0;
         const userShare = totalStaked > 0 ? userStaked / totalStaked : 0;
         const userDailyRewards = dailyRewards * userShare;
 
@@ -47,7 +47,7 @@ export function Dashboard({ walletAddress }: DashboardProps) {
           dailyAPY,
           weeklyEarnings: userDailyRewards * 7,
           monthlyProjection: userDailyRewards * 30,
-          nextRewardTime: calculateNextClaimTime(stakerInfo),
+          nextRewardTime: stakerInfo ? calculateNextClaimTime(stakerInfo) : 0,
         });
       } catch (error) {
         console.error("Failed to calculate metrics:", error);

@@ -201,6 +201,36 @@ export async function readContract(
 }
 
 // ============================================================
+// Wallet Balance Helpers
+// ============================================================
+
+/**
+ * Get XLM balance for a wallet address from Horizon API.
+ */
+interface HorizonBalance {
+  asset_type: string;
+  balance: string;
+}
+
+export async function getWalletBalance(address: string): Promise<string> {
+  try {
+    const response = await fetch(`${HORIZON_URL}/accounts/${address}`);
+    if (!response.ok) {
+      throw new Error(`Horizon API error: ${response.status}`);
+    }
+    const data = await response.json();
+    const xlmBalance = data.balances.find((b: HorizonBalance) => b.asset_type === 'native');
+    if (!xlmBalance) {
+      return "0";
+    }
+    return xlmBalance.balance;
+  } catch (error) {
+    console.error("Failed to fetch balance:", error);
+    throw new Error("Unable to fetch wallet balance");
+  }
+}
+
+// ============================================================
 // ScVal Conversion Helpers
 // ============================================================
 

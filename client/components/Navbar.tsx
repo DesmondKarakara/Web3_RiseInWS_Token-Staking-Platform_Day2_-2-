@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { NETWORK } from "@/hooks/contract";
+import { NETWORK, getWalletBalance } from "@/hooks/contract";
 import { Badge } from "@/components/ui/badge";
 
 function WalletIcon({ size = 16 }: { size?: number }) {
@@ -40,6 +40,17 @@ function PowerIcon() {
   );
 }
 
+function RefreshIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </svg>
+  );
+}
+
 interface NavbarProps {
   walletAddress: string | null;
   onConnect: () => void;
@@ -56,6 +67,33 @@ export default function Navbar({
   const [copied, setCopied] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [balance, setBalance] = useState<string | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+
+  const fetchBalance = useCallback(async () => {
+    if (!walletAddress) return;
+    setBalanceLoading(true);
+    setBalanceError(null);
+    try {
+      const bal = await getWalletBalance(walletAddress);
+      setBalance(bal);
+    } catch (error) {
+      setBalanceError(error instanceof Error ? error.message : "Failed to fetch balance");
+    } finally {
+      setBalanceLoading(false);
+    }
+  }, [walletAddress]);
+
+  // Fetch balance when wallet connects
+  useEffect(() => {
+    if (walletAddress) {
+      fetchBalance(); // eslint-disable-line react-hooks/set-state-in-effect
+    } else {
+      setBalance(null);
+      setBalanceError(null);
+    }
+  }, [walletAddress, fetchBalance]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -152,8 +190,30 @@ export default function Navbar({
                     <p className="font-mono text-xs text-white/60 break-all leading-relaxed">
                       {walletAddress}
                     </p>
+                    <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                      <p className="text-[10px] uppercase tracking-wider text-white/25 mb-1">
+                        XLM Balance
+                      </p>
+                      {balanceLoading ? (
+                        <p className="text-xs text-white/40">Loading...</p>
+                      ) : balanceError ? (
+                        <p className="text-xs text-[#f87171]/70">{balanceError}</p>
+                      ) : balance ? (
+                        <p className="font-mono text-sm text-white/80">{parseFloat(balance).toFixed(4)} XLM</p>
+                      ) : (
+                        <p className="text-xs text-white/40">Unable to load</p>
+                      )}
+                    </div>
                   </div>
                   <div className="p-1.5">
+                    <button
+                      onClick={() => { fetchBalance(); setShowDropdown(false); }}
+                      disabled={balanceLoading}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/60 hover:bg-white/[0.06] hover:text-white/90 transition-colors disabled:opacity-50"
+                    >
+                      <RefreshIcon />
+                      Refresh Balance
+                    </button>
                     <button
                       onClick={() => { handleCopy(); setShowDropdown(false); }}
                       className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-white/60 hover:bg-white/[0.06] hover:text-white/90 transition-colors"

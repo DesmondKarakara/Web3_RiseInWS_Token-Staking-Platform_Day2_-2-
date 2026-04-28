@@ -8,7 +8,33 @@ A **Soroban-based Web3 staking project** built during the RiseIn Workshop. This 
 
 ---
 
-## 📌 Project Overview
+## 🌐 LIVE SITE STATUS
+
+**❌ NOT DEPLOYED YET**
+
+**Live Site:** [Deployment Required - See DEPLOYMENT.md]
+
+**Blocker for Orange Belt:** The site must be deployed to a live hosting service (Vercel, Netlify, etc.) before the site link can be added to the repository description.
+
+📋 **Deployment Guide:** [DEPLOYMENT.md](DEPLOYMENT.md)
+
+---
+
+## � GitHub Repository Description
+
+**Current Status (Not Deployed):**
+```
+Soroban-based Web3 staking platform built during RiseIn Workshop. Stake tokens, earn rewards, track portfolio on Stellar testnet. [Deployment Pending]
+```
+
+**After Deployment (Copy this to GitHub About):**
+```
+🚀 Live Site: [YOUR_DEPLOYED_URL] | Soroban-based Web3 staking platform. Connect wallet, stake tokens, earn rewards on Stellar testnet.
+```
+
+---
+
+## �📌 Project Overview
 
 This repository contains:
 
@@ -19,12 +45,68 @@ This repository contains:
 
 ---
 
+## 🎥 Demo Video
+
+**⚠️ STATUS: NOT RECORDED YET**
+A comprehensive demo video showcasing the complete staking platform is required for Orange Belt certification.
+
+**Required Content:**
+- Wallet connection and balance display
+- Staking tokens with progress indicators
+- Claiming rewards functionality
+- Mobile responsiveness demonstration
+- Technical architecture overview
+
+📋 **Demo Script:** See [DEMO_SCRIPT.md](DEMO_SCRIPT.md) for detailed walkthrough.
+
+🎬 **Demo Video:** [Link to be added after recording]
+
+---
+
+## 🧪 Testing Status
+
+**⚠️ CURRENT STATUS: TESTS NOT EXECUTING**
+
+### Contract Tests
+- ✅ 9 test functions implemented in `contract/src/test.rs`
+- ❌ Tests cannot be executed due to configuration issues
+- 📋 See [TEST_RESULTS.md](TEST_RESULTS.md) for details
+
+### Frontend Tests
+- ✅ Level 3 UI and caching tests created
+- ❌ Jest configuration broken, tests don't run
+- 📋 See [TEST_RESULTS.md](TEST_RESULTS.md) for details
+
+### Build Status
+- ✅ Application builds successfully
+- ✅ TypeScript compilation passes
+- ✅ Static generation works
+
+---
+
+## 📊 Belt Certification Status
+
+| Belt | Status | Completion | Issues |
+|------|--------|------------|---------|
+| ⚪️ White | ✅ Ready | 100% | None |
+| 🟡 Yellow | ✅ Ready | 95%+ | Minor |
+| 🟠 Orange | ❌ Not Ready | 80% | Missing demo video, broken tests |
+| 🟢 Green | ❌ Not Ready | 25% | Missing advanced features |
+
+**📋 Full Analysis:** See [QA_REPORT.md](QA_REPORT.md) and [GAP_ANALYSIS.md](GAP_ANALYSIS.md)
+
+---
+
 
 ## 📜 Smart Contract
 
 Below is the deployed contract preview:
 
+<<<<<<< HEAD
 ![Smart Contract](https://github.com/user-attachments/assets/0e4000df-1b47-461a-b665-b1888fb12313)
+=======
+![Smart Contract](https://github.com/user-attachments/assets/06cbe0e9-9563-4da8-99b2-875b23e03d6d)
+>>>>>>> 95edfe7 (ready for render deploy)
 
 ---
 
@@ -89,6 +171,63 @@ User interface for interacting with the staking contract:
    npm install
    npm run dev
    ```
+
+## 🧪 Testing Instructions
+
+### Prerequisites for Testing
+- Node.js 18+ installed
+- Freighter wallet extension installed
+- Test wallet funded with XLM on Stellar testnet
+- Get test XLM: `https://friendbot.stellar.org/?addr=<YOUR_WALLET_ADDRESS>`
+
+### Running Tests
+
+#### Contract Tests
+```bash
+cd contract
+cargo test
+```
+
+#### Frontend Tests
+```bash
+cd client
+npm test
+```
+
+### Manual Testing Checklist
+
+#### Wallet Connection
+- [ ] Connect wallet via Freighter
+- [ ] Balance displays correctly from Horizon API
+- [ ] Disconnect clears all state
+- [ ] Multi-wallet switching works
+
+#### Staking Operations
+- [ ] Stake transaction succeeds on testnet
+- [ ] Dashboard updates after staking
+- [ ] Unstake works correctly
+- [ ] Full unstake removes from staker list
+
+#### Rewards
+- [ ] Pending rewards display
+- [ ] Claim transaction succeeds
+- [ ] Balance updates after claim
+
+#### Error Handling
+- [ ] Invalid inputs rejected with clear messages
+- [ ] Insufficient balance detected
+- [ ] Network errors handled gracefully
+
+#### UI/UX
+- [ ] All components render without crashes
+- [ ] Loading states show during transactions
+- [ ] Success/error messages appear
+- [ ] Mobile layout works
+
+### Testnet Verification
+- [ ] All transactions appear on Stellar testnet explorer
+- [ ] Horizon API reflects balance updates
+- [ ] Contract state updates correctly
 
 ## 🔐 **Security Features Implemented**
 

@@ -24,7 +24,7 @@ fn test_stake_and_global_stats() {
     let staker2 = Address::generate(&env);
 
     let (token, token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     // Mint tokens to stakers
@@ -62,7 +62,7 @@ fn test_unstake_partial() {
     let staker = Address::generate(&env);
 
     let (token, token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     token_admin_client.mint(&staker, &10000_i128);
@@ -87,7 +87,7 @@ fn test_full_unstake() {
     let staker = Address::generate(&env);
 
     let (token, token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     token_admin_client.mint(&staker, &10000_i128);
@@ -109,7 +109,7 @@ fn test_compound_stake() {
     let staker = Address::generate(&env);
 
     let (token, token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     token_admin_client.mint(&staker, &10000_i128);
@@ -131,7 +131,7 @@ fn test_get_staker_info_not_found() {
     let random = Address::generate(&env);
 
     let (token, _token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     assert!(client.try_get_staker_info(&random).is_err());
@@ -146,7 +146,7 @@ fn test_stake_insufficient_balance() {
     let staker = Address::generate(&env);
 
     let (token, token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     token_admin_client.mint(&staker, &1000_i128);
@@ -164,7 +164,7 @@ fn test_unstake_more_than_staked() {
     let staker = Address::generate(&env);
 
     let (token, token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     token_admin_client.mint(&staker, &5000_i128);
@@ -183,7 +183,7 @@ fn test_zero_stake() {
     let staker = Address::generate(&env);
 
     let (token, token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     token_admin_client.mint(&staker, &5000_i128);
@@ -200,7 +200,7 @@ fn test_global_stats_empty() {
     let token_admin = Address::generate(&env);
 
     let (token, _token_admin_client) = create_token_contract(&env, &token_admin);
-    let contract_id = env.register(Contract, (&token.address,));
+    let contract_id = env.register(Contract, (&token.address, &100_i128));
     let client = ContractClient::new(&env, &contract_id);
 
     let stats = client.get_global_stats();

@@ -14,6 +14,7 @@ import { AnimatedCard } from "@/components/ui/animated-card";
 import { Spotlight } from "@/components/ui/spotlight";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   validateStakeAmount,
@@ -105,29 +106,115 @@ function ZapIcon() {
   );
 }
 
-// ── Styled Input ─────────────────────────────────────────────
+// ── Progress Indicator ──────────────────────────────────────
 
-function Input({
-  label,
-  suffix,
-  ...props
-}: { label: string; suffix?: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+function ProgressIndicator({
+  steps,
+  currentStep,
+  isActive = false
+}: {
+  steps: string[];
+  currentStep: number;
+  isActive?: boolean;
+}) {
   return (
-    <div className="space-y-2">
-      <label className="block text-[11px] font-medium uppercase tracking-wider text-white/30">
-        {label}
-      </label>
-      <div className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-px transition-all focus-within:border-[#7c6cf0]/30 focus-within:shadow-[0_0_20px_rgba(124,108,240,0.08)]">
-        <div className="flex items-center">
-          <input
-            {...props}
-            className="flex-1 rounded-[11px] bg-transparent px-4 py-3 font-mono text-sm text-white/90 placeholder:text-white/15 outline-none"
-          />
-          {suffix && (
-            <span className="pr-4 font-mono text-xs text-white/25">{suffix}</span>
-          )}
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-white/50 uppercase tracking-wider">
+          Transaction Progress
+        </span>
+        <span className="text-xs text-white/30">
+          {currentStep + 1} of {steps.length}
+        </span>
       </div>
+
+      <div className="space-y-2">
+        {steps.map((step, index) => (
+          <div key={index} className="flex items-center gap-3">
+            <div className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs font-medium transition-all ${
+              index < currentStep
+                ? "border-[#34d399] bg-[#34d399]/10 text-[#34d399]"
+                : index === currentStep && isActive
+                ? "border-[#7c6cf0] bg-[#7c6cf0]/10 text-[#7c6cf0] animate-pulse"
+                : "border-white/10 bg-white/5 text-white/30"
+            }`}>
+              {index < currentStep ? (
+                <CheckIcon />
+              ) : index === currentStep && isActive ? (
+                <SpinnerIcon />
+              ) : (
+                index + 1
+              )}
+            </div>
+            <span className={`text-sm transition-colors ${
+              index <= currentStep
+                ? "text-white/70"
+                : "text-white/30"
+            }`}>
+              {step}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {isActive && (
+        <div className="w-full bg-white/5 rounded-full h-1 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-[#7c6cf0] to-[#4fc3f7] transition-all duration-300 ease-out"
+            style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Enhanced Loading States ──────────────────────────────────
+
+function TransactionStatus({
+  status,
+  progressSteps,
+  currentStep,
+  isActive
+}: {
+  status: string | null;
+  progressSteps?: string[];
+  currentStep?: number;
+  isActive?: boolean;
+}) {
+  if (!status && !progressSteps) return null;
+
+  return (
+    <div className="space-y-4">
+      {status && (
+        <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] p-4">
+          <div className="flex h-8 w-8 items-center justify-center">
+            {status.includes("success") ? (
+              <CheckIcon />
+            ) : status.includes("error") || status.includes("failed") ? (
+              <AlertIcon />
+            ) : (
+              <SpinnerIcon />
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/90">{status}</p>
+            {status.includes("success") && (
+              <p className="text-xs text-white/50 mt-1">
+                Transaction confirmed on Stellar testnet
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {progressSteps && currentStep !== undefined && (
+        <ProgressIndicator
+          steps={progressSteps}
+          currentStep={currentStep}
+          isActive={isActive}
+        />
+      )}
     </div>
   );
 }
@@ -181,6 +268,17 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
   const [stakerInfo, setStakerInfo] = useState<{ staked: string; pending_rewards: string; last_reward_per_token: string } | null>(null);
   const [globalStats, setGlobalStats] = useState<{ total_staked: string; staker_count: string; reward_rate: string } | null>(null);
 
+  // Enhanced transaction progress tracking
+  const [txProgress, setTxProgress] = useState<{
+    steps: string[];
+    currentStep: number;
+    isActive: boolean;
+  } | null>(null);
+
+  const stakeSteps = ["Validating input", "Preparing transaction", "Awaiting signature", "Submitting to network", "Confirming transaction"];
+  const unstakeSteps = ["Validating input", "Checking balance", "Preparing transaction", "Awaiting signature", "Submitting to network", "Confirming transaction"];
+  const claimSteps = ["Checking rewards", "Preparing transaction", "Awaiting signature", "Submitting to network", "Confirming transaction"];
+
   const truncate = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   const formatAmount = (val: string | undefined) => {
@@ -211,8 +309,8 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
   }, [walletAddress]);
 
   useEffect(() => {
-    if (walletAddress) refreshData();
-  }, [walletAddress]); // Remove refreshData from deps to avoid cascading renders
+    if (walletAddress) refreshData(); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [walletAddress, refreshData]);
 
   const handleStake = useCallback(async () => {
     if (!walletAddress) return setError("Connect wallet first");
@@ -232,7 +330,6 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
     // Check transaction amount against user balance (simplified check)
     if (stakerInfo) {
       const amount = BigInt(Math.floor(Number(stakeAmount) * 10000000));
-      const userStaked = BigInt(stakerInfo.staked);
       // For simplicity, assume user has enough balance - in real app check wallet balance
       const validation2 = validateTransactionAmount(amount, BigInt("1000000000000")); // Mock large balance
       if (!validation2.valid) {
@@ -242,23 +339,52 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
     setError(null);
     setIsStaking(true);
+    setTxProgress({ steps: stakeSteps, currentStep: 0, isActive: true });
     setTxStatus("Validating transaction...");
 
     try {
       stakeRateLimiter.recordAction(walletAddress);
 
+      // Step 1: Validating input
+      setTxProgress(prev => prev ? { ...prev, currentStep: 0 } : null);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 2: Preparing transaction
+      setTxProgress(prev => prev ? { ...prev, currentStep: 1 } : null);
+      setTxStatus("Preparing transaction...");
       const amount = BigInt(Math.floor(Number(stakeAmount) * 10000000));
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 3: Awaiting signature
+      setTxProgress(prev => prev ? { ...prev, currentStep: 2 } : null);
       setTxStatus("Awaiting signature...");
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Step 4: Submitting to network
+      setTxProgress(prev => prev ? { ...prev, currentStep: 3 } : null);
+      setTxStatus("Submitting to network...");
       await stake(walletAddress, amount);
+
+      // Step 5: Confirming transaction
+      setTxProgress(prev => prev ? { ...prev, currentStep: 4 } : null);
+      setTxStatus("Confirming transaction...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       setTxStatus("Tokens staked successfully!");
       setStakeAmount("");
       await refreshData();
-      setTimeout(() => setTxStatus(null), 5000);
+
+      // Clear progress after success
+      setTimeout(() => {
+        setTxStatus(null);
+        setTxProgress(null);
+      }, 3000);
+
     } catch (err: unknown) {
       const sanitizedError = sanitizeError(err instanceof Error ? err : new Error(String(err)));
       setError(sanitizedError);
       setTxStatus(null);
+      setTxProgress(null);
     } finally {
       setIsStaking(false);
     }
@@ -399,7 +525,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
   const apyDisplay = rewardRate ? (Number(rewardRate) * 31536000 / 1000000000).toFixed(2) : "0.00";
 
   return (
-    <div className="w-full max-w-2xl animate-fade-in-up-delayed">
+    <div className="w-full max-w-2xl mx-auto animate-fade-in-up-delayed">
       {/* Toasts */}
       {error && (
         <div className="mb-4 flex items-start gap-3 rounded-xl border border-[#f87171]/15 bg-[#f87171]/[0.05] px-4 py-3 backdrop-blur-sm animate-slide-down">
@@ -412,14 +538,13 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
         </div>
       )}
 
-      {txStatus && (
-        <div className="mb-4 flex items-center gap-3 rounded-xl border border-[#34d399]/15 bg-[#34d399]/[0.05] px-4 py-3 backdrop-blur-sm shadow-[0_0_30px_rgba(52,211,153,0.05)] animate-slide-down">
-          <span className="text-[#34d399]">
-            {txStatus.includes("success") || txStatus.includes("claimed") || txStatus.includes("Compound") ? <CheckIcon /> : <SpinnerIcon />}
-          </span>
-          <span className="text-sm text-[#34d399]/90">{txStatus}</span>
-        </div>
-      )}
+      {/* Enhanced Transaction Status */}
+      <TransactionStatus
+        status={txStatus}
+        progressSteps={txProgress?.steps}
+        currentStep={txProgress?.currentStep}
+        isActive={txProgress?.isActive}
+      />
 
       {/* Main Card */}
       <Spotlight className="rounded-2xl">
