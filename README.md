@@ -127,12 +127,13 @@ User interface for interacting with the staking contract:
 
 👉 [View Full Project on GitHub](https://github.com/DesmondKarakara/Web3_RiseInWS_Token-Staking-Platform_Day2_-2-)
 
+|👉 [Live](https://web3-riseinws-token-staking-platform.onrender.com/)
 ---
 
 
 ## 🚀 Stellar Token Staking dApp 
 ```bash
-|👉 [Live](https://web3-riseinws-token-staking-platform.onrender.com/)
+https://web3-riseinws-token-staking-platform.onrender.com/
  ```
 
 
