@@ -140,7 +140,7 @@ The application will start at **http://localhost:3001**
 ---
 ## 🎥 Demo Video
 
-**⚠️ STATUS: NOT RECORDED YET**
+[VIDEO](https://github.com/DesmondKarakara/Web3_RiseInWS_Token-Staking-Platform_Day2_-2-/blob/main/Screen%20Recording%202026-04-28%20202754.7z)
 
 ---
 
