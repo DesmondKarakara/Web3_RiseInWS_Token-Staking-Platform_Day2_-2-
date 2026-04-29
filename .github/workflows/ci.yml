@@ -2,21 +2,24 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
-    branches: [main, develop]
+    branches: [main]
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  # Frontend Build & Test
   frontend:
+    name: Frontend Lint / Test / Build
     runs-on: ubuntu-latest
-    
     strategy:
       matrix:
         node-version: [18.x, 20.x]
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Setup Node.js ${{ matrix.node-version }}
@@ -24,105 +27,130 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          cache-dependency-path: ./client/package-lock.json
+          cache-dependency-path: client/package-lock.json
 
-      - name: Install dependencies
-        run: npm install
-        working-directory: ./client
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: client
 
       - name: Run ESLint
         run: npm run lint
-        working-directory: ./client
-        continue-on-error: true
+        working-directory: client
 
-      - name: Build project
+      - name: Run unit tests
+        run: |
+          mkdir -p ci-artifacts
+          npm test -- --runInBand --json --outputFile=./ci-artifacts/frontend-test-results.json
+        working-directory: client
+
+      - name: Build production bundle
         run: npm run build
-        working-directory: ./client
+        working-directory: client
 
-      - name: Run tests
-        run: npm test -- --passWithNoTests
-        working-directory: ./client
-        continue-on-error: true
+      - name: Upload frontend test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-test-results
+          path: client/ci-artifacts/frontend-test-results.json
 
-  # Smart Contract Build & Test
   contract:
+    name: Smart Contract Build / Test
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust stable toolchain
+        uses: rust-lang/setup-rust@v1
         with:
-          targets: wasm32-unknown-unknown
+          rust-version: stable
 
-      - name: Cache cargo registry
+      - name: Cache Cargo registry
         uses: actions/cache@v3
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
 
-      - name: Cache cargo index
+      - name: Cache Cargo git index
         uses: actions/cache@v3
         with:
           path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-git-
 
-      - name: Cache cargo build
+      - name: Cache Cargo build output
         uses: actions/cache@v3
         with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          path: contract/target
+          key: ${{ runner.os }}-cargo-target-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-target-
 
-      - name: Install Soroban CLI
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://install.stellar.org/soroban-cli | sh
-          echo "$HOME/.soroban/bin" >> $GITHUB_PATH
-
-      - name: Build contract
-        run: cargo build --target wasm32-unknown-unknown --release
-        working-directory: ./contract
+      - name: Create contract test artifact directory
+        run: mkdir -p contract/test-results
 
       - name: Run contract tests
-        run: cargo test --lib
-        working-directory: ./contract
+        run: |
+          set -o pipefail
+          cargo test --lib 2>&1 | tee ../../test-results/contract-test-log.txt
+        working-directory: contract/contracts/contract
 
-  # Code Quality Checks
+      - name: Upload contract test log
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: contract-test-log
+          path: contract/test-results/contract-test-log.txt
+
   quality:
+    name: Frontend Quality Checks
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup Node.js
+      - name: Setup Node.js 20.x
         uses: actions/setup-node@v3
         with:
-          node-version: 18.x
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
 
-      - name: Check for security vulnerabilities
-        run: |
-          cd client
-          npm audit --audit-level=high || true
+      - name: Install dependencies for quality checks
+        run: npm ci
+        working-directory: client
 
-  # Build Summary
+      - name: Run TypeScript type check
+        run: npm run type-check
+        working-directory: client
+
+      - name: Run npm audit for high-severity issues
+        run: npm audit --audit-level=high
+        working-directory: client
+
   summary:
+    name: CI Status Summary
     runs-on: ubuntu-latest
     needs: [frontend, contract, quality]
     if: always()
 
     steps:
-      - name: Check build status
+      - name: Report job status
         run: |
-          echo "✅ Frontend build: ${{ needs.frontend.result }}"
-          echo "✅ Contract build: ${{ needs.contract.result }}"
-          echo "✅ Code quality: ${{ needs.quality.result }}"
+          echo "Frontend: ${{ needs.frontend.result }}"
+          echo "Contract: ${{ needs.contract.result }}"
+          echo "Quality: ${{ needs.quality.result }}"
 
-      - name: Notify on failure
-        if: ${{ failure() }}
-        run: echo "⚠️ Some checks failed. Please review the logs above."
-
-      - name: Notify on success
-        if: ${{ success() }}
-        run: echo "✅ All checks passed! Ready for deployment."
+      - name: Summary message
+        run: |
+          if [[ '${{ needs.frontend.result }}' != 'success' || '${{ needs.contract.result }}' != 'success' || '${{ needs.quality.result }}' != 'success' ]]; then
+            echo '⚠️ One or more checks failed. Review the logs and artifacts.'
+            exit 1
+          fi
+          echo '✅ All checks passed!'
