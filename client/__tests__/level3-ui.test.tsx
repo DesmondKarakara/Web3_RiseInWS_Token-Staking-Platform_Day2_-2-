@@ -4,7 +4,7 @@
  */
 
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ContractUI from '@/components/Contract';
 import { useStakingData } from '@/hooks/useStakingData';
@@ -44,8 +44,27 @@ const mockStakingData = {
 };
 
 // Mock transaction response
-const mockTransactionResponse = {
-  status: 'SUCCESS' as const,
+interface MockTransactionResponse {
+  status: 'SUCCESS';
+  hash: string;
+  result: Record<string, unknown>;
+  latestLedger: number;
+  latestLedgerCloseTime: string;
+  ledger: number;
+  createdAt: string;
+  applicationOrder: number;
+  feeBump: boolean;
+  envelopeXdr: string;
+  resultXdr: string;
+  resultMetaXdr: string;
+  feeCharged: string;
+  maxFee: string;
+  lastModifiedLedger: number;
+  lastModifiedTime: string;
+}
+
+const mockTransactionResponse: MockTransactionResponse = {
+  status: 'SUCCESS',
   hash: 'mock-hash',
   result: {},
   latestLedger: 12345,
@@ -61,7 +80,7 @@ const mockTransactionResponse = {
   maxFee: '1000',
   lastModifiedLedger: 12345,
   lastModifiedTime: '2024-01-01T00:00:00Z'
-} as any;
+};
 
 describe('Level 3: Enhanced UI Components', () => {
   beforeEach(() => {

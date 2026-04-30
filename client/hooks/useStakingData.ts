@@ -224,16 +224,26 @@ export function useStakingData(
     };
   }, []);
 
+  // Current time for pure computations
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Computed values
   const isStale = useMemo(() => {
     if (!lastUpdated) return false;
-    return Date.now() - lastUpdated.getTime() > cacheTtl;
-  }, [lastUpdated, cacheTtl]);
+    return currentTime - lastUpdated.getTime() > cacheTtl;
+  }, [lastUpdated, cacheTtl, currentTime]);
 
   const timeSinceUpdate = useMemo(() => {
     if (!lastUpdated) return null;
-    return Math.floor((Date.now() - lastUpdated.getTime()) / 1000);
-  }, [lastUpdated]);
+    return Math.floor((currentTime - lastUpdated.getTime()) / 1000);
+  }, [lastUpdated, currentTime]);
 
   const toggleAutoRefresh = useCallback(() => {
     setAutoRefreshEnabled((prev) => !prev);
