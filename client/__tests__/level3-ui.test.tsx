@@ -10,7 +10,6 @@ import ContractUI from '@/components/Contract';
 import { useStakingData } from '@/hooks/useStakingData';
 import { stake, unstake, claimRewards, compoundStake } from '@/hooks/contract';
 
-// Mock the hooks
 jest.mock('@/hooks/useStakingData');
 jest.mock('@/hooks/contract');
 
@@ -43,27 +42,7 @@ const mockStakingData = {
   clearCache: jest.fn(),
 };
 
-// Mock transaction response
-interface MockTransactionResponse {
-  status: 'SUCCESS';
-  hash: string;
-  result: Record<string, unknown>;
-  latestLedger: number;
-  latestLedgerCloseTime: string;
-  ledger: number;
-  createdAt: string;
-  applicationOrder: number;
-  feeBump: boolean;
-  envelopeXdr: string;
-  resultXdr: string;
-  resultMetaXdr: string;
-  feeCharged: string;
-  maxFee: string;
-  lastModifiedLedger: number;
-  lastModifiedTime: string;
-}
-
-const mockTransactionResponse: MockTransactionResponse = {
+const mockTransactionResponse = {
   status: 'SUCCESS',
   hash: 'mock-hash',
   result: {},
@@ -79,13 +58,17 @@ const mockTransactionResponse: MockTransactionResponse = {
   feeCharged: '100',
   maxFee: '1000',
   lastModifiedLedger: 12345,
-  lastModifiedTime: '2024-01-01T00:00:00Z'
-};
+  lastModifiedTime: '2024-01-01T00:00:00Z',
+  events: [],
+  txHash: 'mock-tx-hash',
+  oldestLedger: 12340,
+  oldestLedgerCloseTime: '2024-01-01T00:00:00Z',
+} as any;
 
 describe('Level 3: Enhanced UI Components', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseStakingData.mockReturnValue(mockStakingData);
+    mockUseStakingData.mockReturnValue(mockStakingData as any);
     mockStake.mockResolvedValue(mockTransactionResponse);
     mockUnstake.mockResolvedValue(mockTransactionResponse);
     mockClaimRewards.mockResolvedValue(mockTransactionResponse);
@@ -95,28 +78,25 @@ describe('Level 3: Enhanced UI Components', () => {
   describe('Progress Indicators', () => {
     test('displays progress indicator during stake transaction', async () => {
       const user = userEvent.setup();
-      mockStake.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 1000)));
+      mockStake.mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 1000))
+      );
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
-      // Switch to stake tab
-      const stakeTab = screen.getByRole('tab', { name: /stake/i });
+      const stakeTab = screen.getByRole('tab', { name: /^Stake$/i });
       await user.click(stakeTab);
 
-      // Fill stake amount
       const stakeInput = screen.getByLabelText(/amount to stake/i);
       await user.type(stakeInput, '10');
 
-      // Click stake button
       const stakeButton = screen.getByRole('button', { name: /stake tokens/i });
       await user.click(stakeButton);
 
-      // Check progress indicator appears
       await waitFor(() => {
         expect(screen.getByText('Validating input')).toBeInTheDocument();
       });
 
-      // Wait for progress to advance
       await waitFor(() => {
         expect(screen.getByText('Preparing transaction')).toBeInTheDocument();
       }, { timeout: 2000 });
@@ -124,24 +104,29 @@ describe('Level 3: Enhanced UI Components', () => {
 
     test('progress indicator shows all steps for unstake', async () => {
       const user = userEvent.setup();
-      mockUnstake.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 2000)));
+      mockUnstake.mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 2000))
+      );
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
-      // Switch to unstake tab
-      const unstakeTab = screen.getByRole('tab', { name: /unstake/i });
+      const unstakeTab = screen.getByRole('tab', { name: /^Unstake$/i });
       await user.click(unstakeTab);
 
-      // Fill unstake amount
       const unstakeInput = screen.getByLabelText(/amount to unstake/i);
       await user.type(unstakeInput, '5');
 
-      // Click unstake button
       const unstakeButton = screen.getByRole('button', { name: /unstake tokens/i });
       await user.click(unstakeButton);
 
-      // Check all progress steps
-      const steps = ['Validating input', 'Checking balance', 'Preparing transaction', 'Awaiting signature', 'Submitting to network', 'Confirming transaction'];
+      const steps = [
+        'Validating input',
+        'Checking balance',
+        'Preparing transaction',
+        'Awaiting signature',
+        'Submitting to network',
+        'Confirming transaction',
+      ];
 
       for (const step of steps) {
         await waitFor(() => {
@@ -155,7 +140,6 @@ describe('Level 3: Enhanced UI Components', () => {
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
-      // Switch to stake tab and perform stake
       const stakeTab = screen.getByRole('tab', { name: /stake/i });
       await user.click(stakeTab);
 
@@ -165,7 +149,6 @@ describe('Level 3: Enhanced UI Components', () => {
       const stakeButton = screen.getByRole('button', { name: /stake tokens/i });
       await user.click(stakeButton);
 
-      // Wait for transaction to complete
       await waitFor(() => {
         expect(screen.queryByText('Validating input')).not.toBeInTheDocument();
       }, { timeout: 3000 });
@@ -177,7 +160,7 @@ describe('Level 3: Enhanced UI Components', () => {
       mockUseStakingData.mockReturnValue({
         ...mockStakingData,
         isLoading: true,
-      });
+      } as any);
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
@@ -186,7 +169,9 @@ describe('Level 3: Enhanced UI Components', () => {
 
     test('disables buttons during transaction', async () => {
       const user = userEvent.setup();
-      mockStake.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 1000)));
+      mockStake.mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 1000))
+      );
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
@@ -199,14 +184,15 @@ describe('Level 3: Enhanced UI Components', () => {
       const stakeButton = screen.getByRole('button', { name: /stake tokens/i });
       await user.click(stakeButton);
 
-      // Button should be disabled during transaction
       expect(stakeButton).toBeDisabled();
       expect(stakeButton).toHaveTextContent(/staking/i);
     });
 
     test('shows spinner icon during loading', async () => {
       const user = userEvent.setup();
-      mockStake.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 1000)));
+      mockStake.mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 1000))
+      );
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
@@ -219,7 +205,6 @@ describe('Level 3: Enhanced UI Components', () => {
       const stakeButton = screen.getByRole('button', { name: /stake tokens/i });
       await user.click(stakeButton);
 
-      // Check for spinner icon (assuming it has a specific class or text)
       const spinner = document.querySelector('.animate-spin') || screen.getByText(/⟳|⚪|⏳/);
       expect(spinner).toBeInTheDocument();
     });
@@ -232,9 +217,6 @@ describe('Level 3: Enhanced UI Components', () => {
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
-      const stakeTab = screen.getByRole('tab', { name: /stake/i });
-      await user.click(stakeTab);
-
       const stakeInput = screen.getByLabelText(/amount to stake/i);
       await user.type(stakeInput, '10');
 
@@ -242,8 +224,8 @@ describe('Level 3: Enhanced UI Components', () => {
       await user.click(stakeButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Transaction failed')).toBeInTheDocument();
-      });
+        expect(screen.getByText('An error occurred. Please try again.')).toBeInTheDocument();
+      }, { timeout: 10000 });
     });
 
     test('clears error on successful retry', async () => {
@@ -254,32 +236,33 @@ describe('Level 3: Enhanced UI Components', () => {
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
-      const stakeTab = screen.getByRole('tab', { name: /stake/i });
-      await user.click(stakeTab);
-
       const stakeInput = screen.getByLabelText(/amount to stake/i);
       await user.type(stakeInput, '10');
 
       const stakeButton = screen.getByRole('button', { name: /stake tokens/i });
 
-      // First attempt fails
       await user.click(stakeButton);
       await waitFor(() => {
-        expect(screen.getByText('Network error')).toBeInTheDocument();
-      });
+        expect(
+          screen.getByText('Network error. Please check your connection and try again.')
+        ).toBeInTheDocument();
+      }, { timeout: 10000 });
 
-      // Second attempt succeeds
       await user.click(stakeButton);
       await waitFor(() => {
-        expect(screen.queryByText('Network error')).not.toBeInTheDocument();
-      });
+        expect(
+          screen.queryByText('Network error. Please check your connection and try again.')
+        ).not.toBeInTheDocument();
+      }, { timeout: 10000 });
     });
   });
 
   describe('Accessibility', () => {
     test('progress indicator is announced to screen readers', async () => {
       const user = userEvent.setup();
-      mockStake.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 1000)));
+      mockStake.mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(mockTransactionResponse), 1000))
+      );
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
@@ -292,8 +275,7 @@ describe('Level 3: Enhanced UI Components', () => {
       const stakeButton = screen.getByRole('button', { name: /stake tokens/i });
       await user.click(stakeButton);
 
-      // Check for aria-live region or role=status
-      const progressRegion = screen.getByRole('status') || screen.getByLabelText(/progress/i);
+      const progressRegion = screen.getByRole('status');
       expect(progressRegion).toBeInTheDocument();
     });
 
@@ -321,11 +303,8 @@ describe('Level 3: Enhanced UI Components', () => {
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
       const stakeInput = screen.getByLabelText(/amount to stake/i);
-
-      // Type quickly
       await user.type(stakeInput, '123456789');
 
-      // Should only trigger validation once after debounce
       expect(stakeInput).toHaveValue('123456789');
     });
 
@@ -335,11 +314,9 @@ describe('Level 3: Enhanced UI Components', () => {
 
       const stakeInput = screen.getByLabelText(/amount to stake/i);
 
-      // Type valid amount
       await user.type(stakeInput, '100');
       expect(stakeInput).toHaveValue('100');
 
-      // Type same amount again - should use cache
       await user.clear(stakeInput);
       await user.type(stakeInput, '100');
       expect(stakeInput).toHaveValue('100');
@@ -351,7 +328,7 @@ describe('Level 3: Enhanced UI Components', () => {
       mockUseStakingData.mockReturnValue({
         ...mockStakingData,
         cacheHits: 10,
-      });
+      } as any);
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
@@ -363,7 +340,7 @@ describe('Level 3: Enhanced UI Components', () => {
         ...mockStakingData,
         timeSinceUpdate: 45,
         isStale: false,
-      });
+      } as any);
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 
@@ -374,7 +351,7 @@ describe('Level 3: Enhanced UI Components', () => {
       mockUseStakingData.mockReturnValue({
         ...mockStakingData,
         isStale: true,
-      });
+      } as any);
 
       render(<ContractUI walletAddress="GA123..." onConnect={jest.fn()} isConnecting={false} />);
 

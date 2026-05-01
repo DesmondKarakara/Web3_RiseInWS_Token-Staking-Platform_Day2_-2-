@@ -10,6 +10,7 @@ import {
   nativeToScVal,
   scValToNative,
   rpc,
+  GetTransactionStatus,
 } from "@stellar/stellar-sdk";
 import {
   isConnected,

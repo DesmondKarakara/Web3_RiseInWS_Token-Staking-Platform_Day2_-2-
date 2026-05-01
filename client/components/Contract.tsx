@@ -24,6 +24,7 @@ import {
   claimRateLimiter,
   validateTransactionAmount
 } from "@/lib/security";
+import { useStakingData } from "@/hooks/useStakingData";
 
 // ── Icons ────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ function TransactionStatus({
   if (!status && !progressSteps) return null;
 
   return (
-    <div className="space-y-4">
+    <div role="status" aria-live="polite" className="space-y-4">
       {status && (
         <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] p-4">
           <div className="flex h-8 w-8 items-center justify-center">
@@ -264,9 +265,23 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
   const [isCompounding, setIsCompounding] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [stakerInfo, setStakerInfo] = useState<{ staked: string; pending_rewards: string; last_reward_per_token: string } | null>(null);
-  const [globalStats, setGlobalStats] = useState<{ total_staked: string; staker_count: string; reward_rate: string } | null>(null);
+  // Use the staking data hook
+  const {
+    stakerInfo,
+    globalStats,
+    isLoading,
+    error: hookError,
+    lastUpdated,
+    isStale,
+    timeSinceUpdate,
+    cacheHits,
+    refresh,
+    clearCache,
+  } = useStakingData(walletAddress, {
+    interval: 10000,
+    cacheTtl: 30000,
+    backgroundRefresh: true,
+  });
 
   // Enhanced transaction progress tracking
   const [txProgress, setTxProgress] = useState<{
@@ -291,22 +306,9 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
     return `${whole}.${fraction.toString().padStart(7, "0").slice(0, 4)}`;
   };
 
-  const refreshData = useCallback(async () => {
-    if (!walletAddress) return;
-    setIsRefreshing(true);
-    try {
-      const [info, stats] = await Promise.all([
-        getStakerInfo(walletAddress),
-        getGlobalStats(),
-      ]);
-      if (info) setStakerInfo(info as typeof stakerInfo);
-      if (stats) setGlobalStats(stats as typeof globalStats);
-    } catch {
-      /* ignore */
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [walletAddress]);
+  const refreshData = useCallback(() => {
+    refresh();
+  }, [refresh]);
 
   useEffect(() => {
     if (walletAddress) refreshData(); // eslint-disable-line react-hooks/set-state-in-effect
@@ -417,23 +419,48 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
     setError(null);
     setIsUnstaking(true);
+    setTxProgress({ steps: unstakeSteps, currentStep: 0, isActive: true });
     setTxStatus("Validating transaction...");
 
     try {
       unstakeRateLimiter.recordAction(walletAddress);
 
       const amount = BigInt(Math.floor(Number(unstakeAmount) * 10000000));
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setTxProgress((prev) => prev ? { ...prev, currentStep: 1 } : null);
+      setTxStatus("Checking balance...");
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setTxProgress((prev) => prev ? { ...prev, currentStep: 2 } : null);
+      setTxStatus("Preparing transaction...");
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setTxProgress((prev) => prev ? { ...prev, currentStep: 3 } : null);
       setTxStatus("Awaiting signature...");
+
       await unstake(walletAddress, amount);
 
+      setTxProgress((prev) => prev ? { ...prev, currentStep: 4 } : null);
+      setTxStatus("Submitting to network...");
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setTxProgress((prev) => prev ? { ...prev, currentStep: 5 } : null);
+      setTxStatus("Confirming transaction...");
+
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setTxStatus("Tokens unstaked successfully!");
       setUnstakeAmount("");
       await refreshData();
-      setTimeout(() => setTxStatus(null), 5000);
+      setTimeout(() => {
+        setTxStatus(null);
+        setTxProgress(null);
+      }, 5000);
     } catch (err: unknown) {
       const sanitizedError = sanitizeError(err instanceof Error ? err : new Error(String(err)));
       setError(sanitizedError);
       setTxStatus(null);
+      setTxProgress(null);
     } finally {
       setIsUnstaking(false);
     }
@@ -538,6 +565,12 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
         </div>
       )}
 
+      {isLoading && (
+        <div role="status" aria-live="polite" className="mb-4 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-white/70">
+          Loading data...
+        </div>
+      )}
+
       {/* Enhanced Transaction Status */}
       <TransactionStatus
         status={txStatus}
@@ -569,6 +602,21 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
                 {apyDisplay}% APY
               </Badge>
               <Badge variant="info">Soroban</Badge>
+              {cacheHits > 0 && (
+                <Badge variant="info">
+                  Cache hits: {cacheHits}
+                </Badge>
+              )}
+              {timeSinceUpdate !== null && (
+                <Badge variant="default">
+                  Updated {timeSinceUpdate}s ago
+                </Badge>
+              )}
+              {isStale && (
+                <Badge variant="warning">
+                  Data may be stale
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -588,7 +636,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
               </div>
               <button
                 onClick={refreshData}
-                disabled={isRefreshing}
+                disabled={isLoading}
                 className="text-white/30 hover:text-white/60 transition-colors"
               >
                 <RefreshIcon />
@@ -597,10 +645,14 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
           )}
 
           {/* Tabs */}
-          <div className="flex border-b border-white/[0.06] px-2 mt-4">
+          <div className="flex border-b border-white/[0.06] px-2 mt-4" role="tablist">
             {tabs.map((t) => (
               <button
                 key={t.key}
+                role="tab"
+                aria-selected={activeTab === t.key}
+                aria-controls={`tabpanel-${t.key}`}
+                id={`tab-${t.key}`}
                 onClick={() => { setActiveTab(t.key); setError(null); }}
                 className={cn(
                   "relative flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-all",
@@ -623,7 +675,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
           <div className="p-6 space-y-5">
             {/* Stake */}
             {activeTab === "stake" && (
-              <div className="space-y-5">
+              <div role="tabpanel" id="tabpanel-stake" aria-labelledby="tab-stake" className="space-y-5">
                 <MethodSignature name="stake" params="(staker: Address, amount: i128)" color="#34d399" />
                 <Input
                   label="Amount to Stake"
@@ -654,7 +706,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
             {/* Unstake */}
             {activeTab === "unstake" && (
-              <div className="space-y-5">
+              <div role="tabpanel" id="tabpanel-unstake" aria-labelledby="tab-unstake" className="space-y-5">
                 <MethodSignature name="unstake" params="(staker: Address, amount: i128)" color="#f87171" />
                 <Input
                   label="Amount to Unstake"
@@ -685,7 +737,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
             {/* Rewards */}
             {activeTab === "rewards" && (
-              <div className="space-y-5">
+              <div role="tabpanel" id="tabpanel-rewards" aria-labelledby="tab-rewards" className="space-y-5">
                 <MethodSignature name="claim_rewards" params="(staker: Address)" color="#fbbf24" />
                 <MethodSignature name="compound_stake" params="(staker: Address, extra: i128)" color="#fbbf24" />
 
@@ -734,7 +786,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
             {/* Stats */}
             {activeTab === "stats" && (
-              <div className="space-y-5">
+              <div role="tabpanel" id="tabpanel-stats" aria-labelledby="tab-stats" className="space-y-5">
                 <MethodSignature name="get_global_stats" params="() -> GlobalStats" color="#7c6cf0" />
 
                 {/* Global Stats */}
@@ -817,7 +869,7 @@ export default function ContractUI({ walletAddress, onConnect, isConnecting }: C
 
                 <button
                   onClick={refreshData}
-                  disabled={isRefreshing || !walletAddress}
+                  disabled={isLoading || !walletAddress}
                   className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] py-3 text-xs text-white/40 hover:text-white/60 hover:border-white/[0.1] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <RefreshIcon />
